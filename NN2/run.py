@@ -10,7 +10,7 @@ import tqdm
 
 from tensorboardX import SummaryWriter
 from utils.net import VGG16
-from utils.util import make_directory
+from utils.util import make_directory, save_checkpoint
 
 # Set logger
 logger = logging.getLogger('DataLoader')
@@ -34,6 +34,7 @@ def get_args():
     parser.add_argument('--mode', type=str, default='train', help='train / test')
     parser.add_argument('--session', type=int, default=1)
     parser.add_argument('--augmentation', type=bool, default=True, help='Data Augmentations')
+    parser.add_argument('--N_classes', type=int, default=20)
     
     # Hyperparameter
     parser.add_argument('--lr', type=float, default=0.1, help='Initial Learning rate')
@@ -49,6 +50,9 @@ def get_args():
     parser.add_argument('--checkpoints_path', default='checkpoints')
     parser.add_argument('--tensorboard_path', default='tensorboard')
     
+    # Visualize
+    parser.add_argument('--disp_count', type=int, default=1)
+    parser.add_argument('--save_count', type=int, default=1)
     args = parser.parse_args()
     
     return args
@@ -99,9 +103,50 @@ def train(args, model, criterion, train_dataset, board, log_writer, checkpoint_d
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
+            
+            # Visualization
+            if step % args.disp_count == 0 and step > 0:
+                board.add_scalar('Train/loss', )
+                t = time.time() - start_time
+                logger.info("[net %s][session %d][epoch %2d][iter %4d][time: %.3f][loss: %.4f][lr: %.2e]" %
+                            (args.name, args.session, epoch, step, t, loss, lr))
+                log_writer.write("[net %s][session %d][epoch %2d][iter %4d][time: %.3f][loss: %.4f][lr: %.2e]" %
+                            (args.name, args.session, epoch, step, t, loss, lr))
+        
+        
 
-
-
+        # Decay learning rate
+        if epoch == 10:
+            adjust_learning_rate(optimizer, 0.1)
+            lr *= 0.1
+            
+        if epoch % args.save_count == 0:
+            checkpoint_name = os.path.join(checkpoint_dir, '{}_{}_{}.pth'.format(args.name, args.session, epoch))
+            checkpoint = dict()
+            checkpoint['net'] = args.name
+            checkpoint['session'] = args.session
+            checkpoint['epoch'] = epoch
+            checkpoint['model'] = model.state_dict()
+            checkpoint['optmizer'] = optimizer.state_dict()
+            save_checkpoint(checkpoint, checkpoint_name)
+            
+            logger.info('save model: {}'.format(checkpoint_name))
+            log_writer.write('save model: {}'.format(checkpoint_name))
+            
+        log_writer.flush()
+    
+    # Final checkpoint save
+    final_checkpoint_name = os.path.join(checkpoint_dir, '{}_{}_{}.pth'.format(args.name, args.session, 'final'))
+    checkpoint = dict()
+    checkpoint['net'] = args.name
+    checkpoint['session'] = args.session
+    checkpoint['epoch'] = epoch
+    checkpoint['model'] = model.state_dict()
+    checkpoint['optimizer'] = optimizer.state_dict()
+    save_checkpoint(checkpoint, final_checkpoint_name)
+    
+    log_writer.close()
+    board.close()
 if __name__=='__main__':
     args = get_args()
     logger.info(args)
