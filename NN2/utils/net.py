@@ -10,14 +10,14 @@ class VGG16(nn.Module):
         self.padding = args.padding
         self.features = nn.Sequential(
             # Conv 1-1
-            nn.Conv2d(3, 64, kernel_size=self.kernel_size, padding=args.padding)
-            nn.BatchNorm2d(num_features=64)
+            nn.Conv2d(3, 64, kernel_size=self.kernel_size, padding=args.padding),
+            nn.BatchNorm2d(num_features=64),
             nn.ReLU(inplace=True),
             
             # Conv 1-2
-            nn.Conv2d(64, 64, kernel_size=self.kernel_size, padding=args.padding)
-            nn.BatchNrom2d(num_reatures=64)
-            nn.ReLU(inplace=True)
+            nn.Conv2d(64, 64, kernel_size=self.kernel_size, padding=args.padding),
+            nn.BatchNorm2d(num_features=64),
+            nn.ReLU(inplace=True),
             
             nn.MaxPool2d(kernel_size=2, stride=2),
             
@@ -85,12 +85,12 @@ class VGG16(nn.Module):
         
         self.classifier = nn.Sequential(
             nn.Linear(512 * 7 * 7, 4096),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
             nn.Dropout(),
             nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
             nn.Dropout(),
-            nn.Linear(4096, args.N_classes)
+            nn.Linear(4096, args.N_classes),
         )
         
     def forward(self, x):
