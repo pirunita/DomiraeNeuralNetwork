@@ -1,6 +1,8 @@
 import argparse
 import logging
+import math
 import os
+import time
 
 import torch
 import torchvision.transforms as transforms
@@ -10,7 +12,7 @@ import tqdm
 
 from tensorboardX import SummaryWriter
 from utils.net import VGG16
-from utils.util import make_directory, save_checkpoint
+from utils.util import adjust_learning_rate, make_directory, save_checkpoint
 
 # Set logger
 logger = logging.getLogger('DataLoader')
@@ -44,15 +46,15 @@ def get_args():
     parser.add_argument('--momentum', type=float, default=0.9)
     
     # Directory
-    parser.add_argument('--dataroot', default='datasets')
+    parser.add_argument('--dataroot', type=str, default='cifar-10-batches-py')
     
     parser.add_argument('--log_path', default='logs')
     parser.add_argument('--checkpoints_path', default='checkpoints')
     parser.add_argument('--tensorboard_path', default='tensorboard')
     
     # Visualize
-    parser.add_argument('--disp_count', type=int, default=1)
-    parser.add_argument('--save_count', type=int, default=1)
+    parser.add_argument('--disp_count', type=int, default=1000)
+    parser.add_argument('--save_count', type=int, default=5)
     args = parser.parse_args()
     
     return args
@@ -88,30 +90,44 @@ def train(args, model, criterion, train_dataset, board, log_writer, checkpoint_d
     
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)    
     
+    total_sum = 0
     for epoch in tqdm.tqdm(range(args.start_epoch, args.max_epoch + 1), desc='Training'):
+        start_time = time.time()
+        
         loss_sum = 0
+        iter_sum = 0
     
-        for i, (img, target) in enumerate(train_loader):
+        for step, (img, target) in enumerate(train_loader):
             if use_cuda:
-                img = input.cuda()
+                img = img.cuda()
                 target = target.cuda()
             
+            img = torch.autograd.Variable(img)
+            target = torch.autograd.Variable(target)
             output = model(img)
+            print('output', output)
+            print('target', target)
             loss = criterion(output, target)
-            
+            loss_sum += loss.item()
+            iter_sum += 1
+            total_sum += 1
+
             # Parameter update
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            
+            print(loss_sum)
             # Visualization
             if step % args.disp_count == 0 and step > 0:
-                board.add_scalar('Train/loss', )
+                
+                board.add_scalar('Train/loss', loss_sum / iter_sum, total_sum)
                 t = time.time() - start_time
                 logger.info("[net %s][session %d][epoch %2d][iter %4d][time: %.3f][loss: %.4f][lr: %.2e]" %
-                            (args.name, args.session, epoch, step, t, loss, lr))
+                            (args.name, args.session, epoch, step, t, loss_sum / iter_sum, lr))
                 log_writer.write("[net %s][session %d][epoch %2d][iter %4d][time: %.3f][loss: %.4f][lr: %.2e]" %
-                            (args.name, args.session, epoch, step, t, loss, lr))
+                            (args.name, args.session, epoch, step, t, loss_sum / iter_sum, lr))
+                loss_sum = 0
+                iter_sum = 0
         
         
 
@@ -158,7 +174,7 @@ if __name__=='__main__':
     model = VGG16(args)
     
     if args.mode == 'train':
-        root_dir = args.train
+        root_dir = args.name
         session_dir = os.path.join(root_dir, str(args.session))
         
         log_dir = os.path.join(session_dir, args.log_path)
@@ -168,7 +184,7 @@ if __name__=='__main__':
         make_directory(root_dir, session_dir, log_dir, checkpoints_dir, tensorboard_dir)
         
         # Dataset
-        train_dataset = datasets.CIFAR10(root='./data', train=True, transforms.Compose([
+        train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.RandomCrop(32, 4),
             transforms.ToTensor(),
@@ -188,6 +204,6 @@ if __name__=='__main__':
         log_writer.write('\n')
         
         # Train
-        train(args, model, criterion, train_dataset, board, log_writer, checkpoints_dir)
+        train(args, model, criterion, train_dataset, board, log_writer, checkpoints_dir, use_cuda=True)
     
 
