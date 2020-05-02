@@ -3,4 +3,5 @@
 __pycache__
 
 *.tar.gz
+VGG16
 cifar-10-batches-py
